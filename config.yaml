@@ -1,0 +1,24 @@
+#   _____ __        __  _              __  __             __
+#  / ___// /_____ _/ /_(_)____        / / / /_  _______  / /
+#  \__ \/ __/ __ `/ __/ / ___/______ / /_/ / / / / ___/ / __ \
+# ___/ / /_/ /_/ / /_/ / /__/______// __  / /_/ (__  ) / / / /
+#/____/\__/\__,_/\__/_/\___/       /_/ /_/\__,_/____/ /_/ /_/
+#
+#            RTL_FM Squelch Calibrator "Static-Hush"
+#@file:        config.yaml
+#@description: Dediziertes Installationsskript für Static-Hush
+
+global:
+  max_squelch: 150                 # Suchbereich für die Binärsuche (0 bis 150)
+  test_duration: 2.0               # Testdauer pro Kalibrierungsschritt in Sek.
+  step_size: 5                     # Sicherheitsaufschlag bei grenzwertigem Rauschen
+
+# DIRECT BOSWATCH3 INPUT SOURCE BLOCK:
+inputSource:
+  sdr:
+    device: 0
+    frequency: 85M                 # Erkennt automatisch 'M' (MHz), 'K' (kHz) oder Rohwerte
+    error: 0                       # PPM-Fehler
+    squelch: 0                     # Wird von Static-Hush ermittelt und direkt überschrieben!
+    gain: 100                      # Gain-Wert für rtl_fm
+    rtlPath: /usr/local/bin/rtl_fm # Pfad zu rtl_fm
