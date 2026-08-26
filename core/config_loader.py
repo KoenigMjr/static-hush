@@ -23,6 +23,26 @@ yaml = YAML()
 yaml.preserve_quotes = True
 
 
+def parse_frequencies(freq_input):
+    """
+    Wandelt einzelne oder mehrere Frequenzangaben in eine Liste von Hz-Werten um.
+    Unterstützt:
+    - Einzelne Frequenz: "88.050M" → [088050000]
+    - Komma-getrennte Liste: "88.050M,89.750M,85.775M" → [088050000, 089750000, 085775000]
+    """
+    if isinstance(freq_input, list):
+        # Falls config.yaml bereits eine Liste enthält
+        return [parse_frequency(f) for f in freq_input]
+
+    freq_str = str(freq_input).strip()
+    if ',' in freq_str:
+        # Komma-getrennte Liste
+        return [parse_frequency(f.strip()) for f in freq_str.split(',')]
+    else:
+        # Einzelne Frequenz
+        return [parse_frequency(freq_str)]
+
+
 def parse_frequency(freq_input):
     """
     Wandelt Frequenzangaben wie '172.640M', '172.640', oder '172640000' in Hz (int) um.

@@ -13,7 +13,7 @@ r"""!
 """
 
 import sys
-from core.config_loader import load_config, save_config, parse_frequency, build_rtl_fm_args
+from core.config_loader import load_config, save_config, build_rtl_fm_args, parse_frequencies
 from core.receiver import RtlFmReceiver
 from core.analyzer import ByteCountAnalyzer  # Später: AudioVarianceAnalyzer
 from core.strategy import SquelchOptimizer
@@ -38,11 +38,12 @@ def main():
 
     # Werte extrahieren und umwandeln
     rtl_binary = sdr_cfg.get("rtlPath", "/usr/local/bin/rtl_fm")
-    freq_hz = parse_frequency(sdr_cfg.get("frequency"))
+    frequencies = parse_frequencies(sdr_cfg.get("frequency"))  # ← JETZT Liste!
     base_args = build_rtl_fm_args(sdr_cfg)
 
     print("[*] BOSWatch3 Konfiguration erkannt!")
-    print(f"    ➔ Frequenz:  {freq_hz / 1e6:.4f} MHz")
+    for idx, freq_hz in enumerate(frequencies, 1):
+        print(f"    ➔ Frequenz {idx}/{len(frequencies)}:  {freq_hz / 1e6:.4f} MHz")
     print(f"    ➔ Basis-Cmd: {rtl_binary} {base_args}\n")
 
     # Trick: Wir schreiben base_args und rtlPath temporär in global_cfg,
@@ -58,30 +59,43 @@ def main():
 
     optimizer = SquelchOptimizer(receiver, analyzer, global_cfg)
 
-    # 4. Kalibrierung abarbeiten
-    name = f"BOSWatch SDR (Gerät {sdr_cfg.get('device', 0)})"
-    print(f"[*] Starte Kalibrierung für Kanal: {name}")
+    # 4. Kalibrierung für JEDE Frequenz abarbeiten
+    squelch_results = {}  # Speichere alle Ergebnisse
 
-    # Schritt A: Warten bis frei
-    optimizer.wait_for_free_channel(freq_hz)
+    for idx, freq_hz in enumerate(frequencies, 1):
+        name = f"BOSWatch SDR (Gerät {sdr_cfg.get('device', 0)}, Frequenz {idx}/{len(frequencies)})"
+        print(f"\n[*] Starte Kalibrierung für: {name} ({freq_hz / 1e6:.4f} MHz)")
 
-    # Schritt B: Squelch via Binärsuche finden
-    optimal_val = optimizer.binary_search(freq_hz)
+        # Schritt A: Warten bis frei
+        optimizer.wait_for_free_channel(freq_hz)
 
-    # Schritt C: Verifizieren
-    if not optimizer.verify(freq_hz, optimal_val):
-        optimal_val = min(optimal_val + global_cfg.get('step_size', 5), global_cfg.get('max_squelch', 150))
-        print("   [!] Ergebnis unsicher. Sicherheitsaufschlag angewendet.")
+        # Schritt B: Squelch via Binärsuche finden
+        optimal_val = optimizer.binary_search(freq_hz)
 
-    print(f"[=>] Fertig für {name}: Optimaler Squelch = {optimal_val}")
+        # Schritt C: Verifizieren
+        if not optimizer.verify(freq_hz, optimal_val):
+            optimal_val = min(optimal_val + global_cfg.get('step_size', 5), global_cfg.get('max_squelch', 150))
+            print("   [!] Ergebnis unsicher. Sicherheitsaufschlag angewendet.")
 
-    # 5. Ergebnis sichern (direkt in den sdr-Block!)
-    sdr_cfg['squelch'] = optimal_val
+        print(f"[=>] Fertig für {name}: Optimaler Squelch = {optimal_val}")
+        squelch_results[freq_hz] = optimal_val
+
+    # 5. Ergebnisse sichern
+    # Falls mehrere Frequenzen: Speichere eine Liste mit Squelch-Werte pro Frequenz
+    if len(frequencies) == 1:
+        sdr_cfg['squelch'] = squelch_results[frequencies[0]]
+    else:
+        sdr_cfg['squelch'] = list(squelch_results.values())
+
     save_config(config)
     print("\n[+] Squelch erfolgreich in config.yaml kalibriert und gespeichert!")
 
     # 6. Akustischer Test anbieten
-    prompt_audio_test(sdr_cfg, optimal_val)
+    # Übergib die squelch_results direkt (als Liste bei Multi-Freq)
+    if len(frequencies) == 1:
+        prompt_audio_test(sdr_cfg, squelch_results[frequencies[0]])
+    else:
+        prompt_audio_test(sdr_cfg, list(squelch_results.values()))
 
 
 if __name__ == "__main__":
